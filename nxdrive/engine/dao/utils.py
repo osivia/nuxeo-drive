@@ -64,9 +64,10 @@ def fix_db(database: Path, dump_file: Path = Path("dump.sql")) -> None:
     """
 
     if is_healthy(database):
+        log.debug("Database integrity is OK for {database!r}!")
         return
 
-    log.info(f"Re-generating the whole database content of {database!r}...")
+    log.warning(f"Re-generating the whole database content of {database!r}...")
 
     # Dump
     try:
@@ -99,7 +100,7 @@ def fix_db(database: Path, dump_file: Path = Path("dump.sql")) -> None:
             dump_file.unlink()
 
     new_size = database.stat().st_size
-    log.info(f"Re-generation completed, saved {(old_size - new_size) / 1024} Kb.")
+    log.info(f"Re-generation completed, saved {(old_size - new_size) / 1024:,} Kib.")
 
 
 def restore_backup(database: Path) -> bool:
@@ -110,9 +111,6 @@ def restore_backup(database: Path) -> bool:
     it will look for all files matching ~/.nuxeo-drive/backups/manager.db_*
     and take the one with the most recent timestamp.
     """
-
-    if not database:
-        return False
 
     backup_folder = database.with_name("backups")
     if not backup_folder.is_dir():

@@ -268,7 +268,7 @@ class Remote(Nuxeo):
                     size = os.stat(file_path).st_size
                     log.debug(
                         f"Speed for {size / 1000} kilobytes is {upload_duration} sec:"
-                        f" {size / upload_duration / 1024} Kib/s"
+                        f" {size / upload_duration / 1024:,} Kib/s"
                     )
 
                 headers = {"Nuxeo-Transaction-Timeout": str(tx_timeout)}

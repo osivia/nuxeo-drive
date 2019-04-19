@@ -142,9 +142,13 @@ class ConfigurationDAO(QObject):
         self._db = db
         self._lock = RLock()
 
-        log.info(f"Create {type(self).__name__} on {self._db!r}")
-
+        size = 0
         exists = self._db.is_file()
+        if exists:
+            size = self._db.stat().st_size
+
+        log.info(f"Create {type(self).__name__} on {self._db!r} ({size // 1024:,} Kib)")
+
         if exists:
             # Fix potential file corruption
             try:
@@ -248,11 +252,6 @@ class ConfigurationDAO(QObject):
         )
 
     def _create_main_conn(self) -> None:
-        log.info(
-            f"Create main connexion on {self._db!r} "
-            f"(dir_exists={self._db.parent.exists()}, "
-            f"file_exists={self._db.exists()})"
-        )
         self._conn = connect(
             str(self._db),
             check_same_thread=False,
