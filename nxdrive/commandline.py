@@ -552,14 +552,14 @@ class CliHandler:
 
         named_pipe = f"{BUNDLE_IDENTIFIER}.protocol.{pid}"
         log.debug(
-            f"Opening a local socket to the running instance on {named_pipe} "
+            f"Opening a local socket to the running instance on {named_pipe!r} "
             f"(payload={self.redact_payload(payload)})"
         )
         client = QLocalSocket()
         try:
             client.connectToServer(named_pipe)
 
-            if not client.waitForConnected():
+            if not client.waitForConnected(10_000):  # 10 sec timeout
                 log.error(f"Unable to open client socket: {client.errorString()}")
                 return
 
