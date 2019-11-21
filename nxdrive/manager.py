@@ -197,6 +197,8 @@ class Manager(QObject):
         self.sync_and_quit_worker = SyncAndQuitWorker(self)
         self.started.connect(self.sync_and_quit_worker.thread.start)
 
+        self.release_notes_contents = ""
+
     def __enter__(self):
         return self
 
@@ -211,6 +213,9 @@ class Manager(QObject):
             self.stop()
         finally:
             Manager._instances.pop(self.home, None)
+
+    def release_notes(self) -> str:
+        return self.release_notes_contents
 
     def get_metrics(self) -> Metrics:
         return {

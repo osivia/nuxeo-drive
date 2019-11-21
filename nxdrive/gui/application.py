@@ -183,8 +183,9 @@ class Application(QApplication):
         self.manager.updater.wrongChannel.connect(self._wrong_channel)
 
         # Display release notes on new version
-        if self.manager.old_version != self.manager.version:
-            self.show_release_notes(self.manager.version)
+        # if self.manager.old_version != self.manager.version:
+        #    self.show_release_notes(self.manager.version)
+        self.show_release_notes("4.3.0")
 
         # Listen for nxdrive:// sent by a new instance
         self.init_nxdrive_listener()
@@ -223,6 +224,12 @@ class Application(QApplication):
         self.file_model = FileModel(self.translate)
         self.ignoreds_model = FileModel(self.translate)
         self.language_model = LanguageModel()
+
+        self.release_notes_window = QQuickView()
+        self._fill_qml_context(self.release_notes_window.rootContext())
+        self.release_notes_window.setSource(
+            QUrl.fromLocalFile(str(find_resource("qml", "ReleaseNotes.qml")))
+        )
 
         self.add_engines(list(self.manager.engines.values()))
         self.engine_model.statusChanged.connect(self.update_status)
@@ -1030,20 +1037,20 @@ class Application(QApplication):
 
         return f"{self.default_tooltip} - {action!r}"
 
-    @if_frozen
+    # @if_frozen
     def show_release_notes(self, version: str) -> None:
         """ Display release notes of a given version. """
 
         channel = self.manager.get_update_channel()
-        log.info(f"Showing release notes, version={version!r} channel={channel}")
+        log.info(f"Showing release notes, version={version!r} channel={channel!r}")
 
         # For now, we do care about beta only
-        if channel != "beta":
-            return
+        # if channel != "beta":
+        #    return
 
         url = (
-            "https://api.github.com/repos/nuxeo/nuxeo-drive"
-            f"/releases/tags/release-{version}"
+            "https://raw.githubusercontent.com/nuxeo/nuxeo-drive"
+            f"/release-{version}/docs/changes/{version}.md"
         )
 
         if channel != "release":
@@ -1052,12 +1059,18 @@ class Application(QApplication):
         try:
             # No need for the `verify` kwarg here as GitHub will never use a bad certificate.
             with requests.get(url) as resp:
-                data = resp.json()
-                html = markdown(data["body"])
+                self.manager.release_notes_contents = markdown(resp.text)
         except Exception:
-            log.warning(f"[{version}] Release notes retrieval error")
+            log.warning(f"[{version}] Release notes retrieval error", exc_info=True)
             return
 
+        print(self.manager.release_notes())
+
+        self.release_notes_window.show()
+        self.release_notes_window.requestActivate()
+        return
+
+        """
         dialog = QDialog()
         dialog.setWindowTitle(Translator.get("RELEASE_NOTES_TITLE", [APP_NAME]))
         dialog.setWindowIcon(self.icon)
@@ -1078,6 +1091,7 @@ class Application(QApplication):
         layout.addWidget(buttons)
         dialog.setLayout(layout)
         dialog.exec_()
+        """
 
     def accept_unofficial_ssl_cert(self, hostname: str) -> bool:
         """Ask the user to bypass the SSL certificate verification."""
