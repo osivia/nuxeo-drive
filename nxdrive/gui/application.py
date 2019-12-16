@@ -200,6 +200,9 @@ class Application(QApplication):
         if Options.protocol_url:
             self._handle_nxdrive_url(Options.protocol_url)
 
+        for uid in self.manager.engines.keys():
+            self.show_direct_transfer_window(uid)
+
     @if_frozen
     def add_qml_import_path(self, view: QQuickView) -> None:
         """
@@ -269,6 +272,10 @@ class Application(QApplication):
             self.conflicts_window = root.findChild(QQuickWindow, "conflictsWindow")
             self.settings_window = root.findChild(QQuickWindow, "settingsWindow")
             self.systray_window = root.findChild(SystrayWindow, "systrayWindow")
+            self.direct_transfer_window = root.findChild(
+                QQuickWindow, "directTransferWindow"
+            )
+
             if LINUX:
                 flags |= Qt.Drawer
 
@@ -662,6 +669,13 @@ class Application(QApplication):
         self._window_root(self.conflicts_window).setEngine.emit(engine.uid)
         self.conflicts_window.show()
         self.conflicts_window.requestActivate()
+
+    @pyqtSlot(str)
+    def show_direct_transfer_window(self, engine_uid: str) -> None:
+        """Display the Direct Transfer window."""
+        self._window_root(self.direct_transfer_window).setEngine.emit(engine_uid)
+        self.direct_transfer_window.show()
+        self.direct_transfer_window.requestActivate()
 
     @pyqtSlot()  # From systray.py
     @pyqtSlot(str)  # All other calls
