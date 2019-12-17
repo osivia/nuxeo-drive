@@ -96,3 +96,4 @@ class TransferStatus(Enum):
     PAUSED = auto()
     SUSPENDED = auto()
     DONE = auto()
+    ABORTED = auto()

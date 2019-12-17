@@ -45,6 +45,7 @@ from ..engine.engine import Engine
 from ..gui.folders_dialog import DialogMixin, DocumentsDialog, FoldersDialog
 from ..notification import Notification
 from ..options import Options
+from ..state import State
 from ..translator import Translator
 from ..updater.constants import (
     UPDATE_STATUS_INCOMPATIBLE_SERVER,
@@ -201,6 +202,12 @@ class Application(QApplication):
         # Handle the eventual command via the custom URL scheme
         if Options.protocol_url:
             self._handle_nxdrive_url(Options.protocol_url)
+
+    @pyqtSlot()
+    def exit_app(self) -> None:
+        """Initiate the application exit."""
+        State.about_to_quit = True
+        self.quit()
 
     @if_frozen
     def add_qml_import_path(self, view: QQuickView) -> None:
@@ -828,7 +835,7 @@ class Application(QApplication):
 
     @pyqtSlot(object)
     def _connect_engine(self, engine: Engine) -> None:
-        engine.directTranferDuplicateError.connect(
+        engine.directTransferDuplicateError.connect(
             self._direct_transfer_duplicate_error
         )
         engine.syncStarted.connect(self.change_systray_icon)

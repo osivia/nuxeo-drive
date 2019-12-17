@@ -74,6 +74,9 @@ def no_warnings(recwarn):
         elif "type=SocketKind.SOCK_STREAM" in message:
             # Socket leaks on macOS, may need investigations
             continue
+        elif "resolve package from __spec__ or __package__" in message:
+            # Not related to our stuff
+            continue
 
         warn = f"{warning.filename}:{warning.lineno} {message}"
         print(warn, file=sys.stderr)

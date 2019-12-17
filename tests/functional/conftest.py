@@ -1,20 +1,34 @@
 # coding: utf-8
 from logging import getLogger
 from pathlib import Path
-from random import randint
 from typing import Callable, Optional
 from uuid import uuid4
 
 import pytest
-
 from faker import Faker
 from nuxeo.documents import Document
 from nuxeo.users import User
 from nxdrive.manager import Manager
 
 from .. import env
+from ..utils import salt
 
 log = getLogger(__name__)
+
+
+@pytest.fixture(scope="session")
+def app():
+    """Fixture required to be able to process events and quit smoothly the application."""
+    from PyQt5.QtCore import QCoreApplication, QTimer
+
+    app = QCoreApplication([])
+
+    # Little trick here! See Application.__init__() for details.
+    timer = QTimer()
+    timer.timeout.connect(lambda: None)
+    timer.start(100)
+
+    yield app
 
 
 @pytest.fixture(scope="session")
@@ -84,7 +98,8 @@ def user_factory(request, server, faker):
 
     def _make_user(username: str = "", password: str = "Administrator"):
         first_name, last_name = fake.name().split(" ", 1)
-        username = username or f"{first_name.lower()}-{randint(1, 99_999)}"
+        username = username or first_name.lower()
+        username = salt(username)
         properties = {
             "lastName": last_name,
             "firstName": first_name,
@@ -118,6 +133,7 @@ def obj_factory(request, server):
         enable_sync: bool = False,
     ):
         title = title or str(uuid4())
+        title = salt(title)
         new = Document(name=title, type=nature, properties={"dc:title": title})
         obj = server.documents.create(new, parent_path=env.WS_DIR)
         request.addfinalizer(obj.delete)
