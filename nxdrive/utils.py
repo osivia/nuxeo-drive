@@ -46,6 +46,8 @@ from .options import Options
 if TYPE_CHECKING:
     from .proxy import Proxy  # noqa
 
+# AES
+BLOCK_SIZE = 16
 
 DEFAULTS_CERT_DETAILS = {
     "subject": [],
@@ -755,56 +757,47 @@ def get_certificate_details(hostname: str = "", cert_data: str = "") -> Dict[str
 
 
 @lru_cache(maxsize=4, typed=True)
-def encrypt(
-    plaintext: Union[bytes, str], secret: Union[bytes, str], lazy: bool = True
-) -> bytes:
+def encrypt(data: Union[bytes, str], key: Union[bytes, str]) -> bytes:
     """ Symmetric encryption using AES. """
 
     import base64
-    from Cryptodome.Random import get_random_bytes
-    from Cryptodome.Cipher import AES
+    import tinyaes
 
-    plaintext = force_encode(plaintext)
-    secret = force_encode(secret)
-    secret = _lazysecret(secret) if lazy else secret
-    iv = get_random_bytes(AES.block_size)
-    encobj = AES.new(secret, AES.MODE_CFB, iv)
-    return base64.b64encode(iv + encobj.encrypt(plaintext))
+    data = force_encode(data)
+    key = force_encode(key)
+    if len(key) > BLOCK_SIZE:
+        key = key[:BLOCK_SIZE]
+    else:
+        key = key.zfill(BLOCK_SIZE)
+
+    iv = os.urandom(BLOCK_SIZE)
+    encobj = tinyaes.AES(key, iv)
+    return base64.b64encode(iv + encobj.CTR_xcrypt_buffer(data))
 
 
 @lru_cache(maxsize=4, typed=True)
-def decrypt(
-    ciphertext: Union[bytes, str], secret: Union[bytes, str], lazy: bool = True
-) -> Optional[bytes]:
+def decrypt(data: Union[bytes, str], key: Union[bytes, str]) -> Optional[bytes]:
     """ Symmetric decryption using AES. """
 
     import base64
-    from Cryptodome.Cipher import AES
+    import tinyaes
 
-    ciphertext = force_encode(ciphertext)
-    secret = force_encode(secret)
-    secret = _lazysecret(secret) if lazy else secret
-    ciphertext = base64.b64decode(ciphertext)
-    iv = ciphertext[: AES.block_size]
-    ciphertext = ciphertext[AES.block_size :]
+    key = force_encode(key)
+    if len(key) > BLOCK_SIZE:
+        key = key[:BLOCK_SIZE]
+    else:
+        key = key.zfill(BLOCK_SIZE)
+
+    data = base64.b64decode(force_encode(data))
+    iv, data = data[:BLOCK_SIZE], data[BLOCK_SIZE:]
 
     # Don't fail on decrypt
     try:
-        encobj = AES.new(secret, AES.MODE_CFB, iv)
-        return encobj.decrypt(ciphertext)
+        res: bytes = tinyaes.AES(key, iv).CTR_xcrypt_buffer(data)
     except Exception:
         return None
-
-
-@lru_cache(maxsize=4)
-def _lazysecret(secret: bytes, blocksize: int = 32, padding: bytes = b"}") -> bytes:
-    """Pad secret if not legal AES block size (16, 24, 32)."""
-    length = len(secret)
-    if length > blocksize:
-        return secret[: -(length - blocksize)]
-    if length not in (16, 24, 32):
-        return secret + (blocksize - length) * padding
-    return secret
+    else:
+        return res
 
 
 @lru_cache(maxsize=4)

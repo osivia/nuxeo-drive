@@ -8,9 +8,8 @@ from pathlib import Path, _posix_flavour, _windows_flavour
 from time import sleep
 from unittest.mock import patch
 
-import pytest
-
 import nxdrive.utils
+import pytest
 from nxdrive.constants import APP_NAME, WINDOWS
 from nxdrive.options import Options
 
@@ -129,29 +128,62 @@ def test_current_thread_id():
     assert thread_id > 0
 
 
-def test_encrypt_decrypt():
-    enc = nxdrive.utils.encrypt
-    dec = nxdrive.utils.decrypt
+def encrypt_pycryptodomex(plaintext: bytes, secret: bytes) -> bytes:
+    """Symmetric encryption using AES (taken from Nuxeo Drive 4.4.1). """
 
-    pwd = b"Administrator"
+    import base64
+    from Cryptodome.Random import get_random_bytes
+    from Cryptodome.Cipher import AES
 
-    # Test secret with length > block size
-    token = b"12345678-acbd-1234-cdef-1234567890ab"
-    cipher = enc(pwd, token)
-    assert dec(cipher, token) == pwd
+    blocksize = 32
+    secret = nxdrive.utils.force_encode(secret)
+    length = len(secret)
+    if length > blocksize:
+        secret = secret[: -(length - blocksize)]
+    if length not in (16, 24, 32):
+        secret += (blocksize - length) * b"}"
 
-    # Test secret with length multiple of 2
-    token = "12345678-acbd-1234-cdef-12345678"
-    cipher = enc(pwd, token)
-    assert dec(cipher, token) == pwd
+    iv = get_random_bytes(AES.block_size)
+    plaintext = nxdrive.utils.force_encode(plaintext)
+    encobj = AES.new(secret, AES.MODE_CFB, iv)
+    return base64.b64encode(iv + encobj.encrypt(plaintext))
 
-    # Test secret with length not multiple of 2
-    token = "12345678-acbd-1234-cdef-123456"
-    cipher = enc(pwd, token)
-    assert dec(cipher, token) == pwd
 
-    # Decrypt failure
-    assert dec("", token) is None
+@pytest.mark.parametrize(
+    "key",
+    [
+        "12345678-acbd-1234-cdef-1234567890ab",  # length > block size
+        "12345678-acbd-1234-cdef-12345678",  # length multiple of 2
+        "12345678-acbd-1234-cdef-123456",  # length not multiple of 2
+    ],
+)
+def test_encrypt_decrypt_move_from_pycryptodomex(key):
+    """Ensure data encrypted by PyCryptodomex works with tinyaes.
+    This is a regression test to be sure data can still be decrypted when
+    users will upgrade from Nuxeo Drive < 4.5 to 4.5+.
+    """
+    data = b"Administrator"
+    cipher = encrypt_pycryptodomex(data, key)
+    assert nxdrive.utils.decrypt(cipher, key) == data
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "12345678-acbd-1234-cdef-1234567890ab",  # length > block size
+        "12345678-acbd-1234-cdef-12345678",  # length multiple of 2
+        "12345678-acbd-1234-cdef-123456",  # length not multiple of 2
+        "",
+    ],
+)
+def test_encrypt_decrypt(key):
+    data = b"Administrator"
+    cipher = nxdrive.utils.encrypt(data, key)
+    assert nxdrive.utils.decrypt(cipher, key) == data
+
+
+def test_decrypt_failure():
+    assert nxdrive.utils.decrypt("", "12345678-acbd-1234-cdef-1234567890ab") is None
 
 
 @windows_only(reason="Unix has no drive concept")
