@@ -1,6 +1,7 @@
 # coding: utf-8
 import json
 import shutil
+from contextlib import suppress
 from dataclasses import asdict
 from logging import getLogger
 from os import getenv
@@ -203,14 +204,15 @@ class QMLDriveApi(QObject):
 
     @pyqtSlot(str, str, int, float)
     def pause_transfer(
-        self, nature: str, engine_uid: str, transfer_uid: int, progress: float
+        self, nature: str, engine_uid: str, uid: int, progress: float
     ) -> None:
         """Pause a given transfer. *nature* is either downloads or upload."""
-        log.info(f"Pausing {nature} {transfer_uid} for engine {engine_uid!r}")
+        log.info(f"Pausing {nature} {uid} for engine {engine_uid!r}")
         engine = self._manager.engines.get(engine_uid)
         if not engine:
+            self._suppress_transfer(nature, uid)
             return
-        engine.dao.pause_transfer(nature, transfer_uid, progress)
+        engine.dao.pause_transfer(nature, uid, progress)
 
     @pyqtSlot(str, str, int)
     def resume_transfer(self, nature: str, engine_uid: str, uid: int) -> None:
@@ -218,8 +220,18 @@ class QMLDriveApi(QObject):
         log.info(f"Resume {nature} {uid} for engine {engine_uid!r}")
         engine = self._manager.engines.get(engine_uid)
         if not engine:
+            self._suppress_transfer(nature, uid)
             return
         engine.resume_transfer(nature, uid)
+
+    def _suppress_transfer(self, nature: str, uid: int) -> None:
+        """Remove a transfer from the database and delete the eventual TMP file."""
+        transfer = getattr(self._manager.dao, f"get_{nature}")(uid=uid)
+        if nature == "download":
+            with suppress(OSError):
+                shutil.rmtree(Path(transfer.tmpname).parent)
+        self._manager.dao.remove_transfer(nature, transfer.path)
+        log.warning(f"Removed orphan transfer {uid}")
 
     @pyqtSlot(str, str)
     def show_metadata(self, uid: str, ref: str) -> None:
