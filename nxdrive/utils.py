@@ -16,7 +16,7 @@ from distutils.version import StrictVersion
 from functools import lru_cache
 from logging import getLogger
 from pathlib import Path
-from threading import get_ident
+from threading import Lock, get_ident
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -58,6 +58,7 @@ DEFAULTS_CERT_DETAILS = {
 
 DEVICE_DESCRIPTIONS = {"darwin": "macOS", "linux": "GNU/Linux", "win32": "Windows"}
 
+lock = Lock()
 log = getLogger(__name__)
 
 
@@ -696,12 +697,13 @@ def safe_rename(src: Path, dst: Path) -> None:
     try:
         src.rename(dst)
     except FileExistsError:
-        if dst.is_file():
-            log.info(f"Deleting {dst} to rename {src} in its place")
+        with lock:
+            if not dst.is_file():
+                raise
+
+            log.info(f"Deleting {dst!r} to rename {src!r} in its place")
             dst.unlink()
             src.rename(dst)
-        else:
-            raise
 
 
 @lru_cache(maxsize=16)
