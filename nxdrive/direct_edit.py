@@ -2,6 +2,7 @@
 import errno
 import re
 import shutil
+from contextlib import suppress
 from datetime import datetime
 from logging import getLogger
 from pathlib import Path
@@ -289,6 +290,12 @@ class DirectEdit(Worker):
             kwargs["check_params"] = False
 
             pair = engine.dao.get_valid_duplicate_file(blob.digest)
+
+        # Remove the eventual temporary file. We do not want to be able to resume an
+        # old download because of several issues and does not make sens for that feature.
+        # See NXDRIVE-2112 and NXDRIVE-2116 for more context.
+        with suppress(FileNotFoundError):
+            file_out.unlink()
 
         if pair:
             existing_file_path = engine.local.abspath(pair.local_path)
